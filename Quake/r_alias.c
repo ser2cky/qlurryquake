@@ -617,12 +617,12 @@ void R_SetupAliasLighting (entity_t	*e)
 	if (r_glemu.value)
 	{
 		// HACK HACK HACK -- no fullbright colors, so make torches full light
-		if (!Q_strcmp (clmodel->name, "progs/flame2.mdl")
-			|| !Q_strcmp (clmodel->name, "progs/flame.mdl") )
+		if (!Q_strcmp (e->model->name, "progs/flame2.mdl")
+			|| !Q_strcmp (e->model->name, "progs/flame.mdl") )
 		{
-			lightcolor[0] = 256.0f;
-			lightcolor[1] = 256.0f;
-			lightcolor[2] = 256.0f;
+			lightcolor[0] = 256.0f + (256.0f * 0.7);
+			lightcolor[1] = 256.0f + (256.0f * 0.7);
+			lightcolor[2] = 256.0f + (256.0f * 0.7);
 		}
 	}
 
