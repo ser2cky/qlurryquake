@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static int		sb_updates;		// if >= vid.numpages, no update needed
 
 #define STAT_MINUS		10	// num frame for '-' stats digit
+#define SBAR_HEIGHT		24
 
 static qpic_t		*sb_nums[2][11];
 static qpic_t		*sb_colon, *sb_slash;
@@ -271,7 +272,10 @@ Sbar_DrawPic -- johnfitz -- rewritten now that GL_SetCanvas is doing the work
 */
 void Sbar_DrawPic (int x, int y, qpic_t *pic)
 {
-	Draw_Pic (x, y + 24, pic);
+	if (r_glemu.value == 1)
+		Draw_Pic (x, y + (200-SBAR_HEIGHT), pic);
+	else
+		Draw_Pic (x, y + 24, pic);
 }
 
 /*
@@ -284,7 +288,10 @@ void Sbar_DrawPicAlpha (int x, int y, qpic_t *pic, float alpha)
 	glDisable (GL_ALPHA_TEST);
 	glEnable (GL_BLEND);
 	glColor4f(1,1,1,alpha);
-	Draw_Pic (x, y + 24, pic);
+	if (r_glemu.value == 1)
+		Draw_Pic (x, y + (200 - SBAR_HEIGHT), pic);
+	else
+		Draw_Pic (x, y + 24, pic);
 	glColor4f(1,1,1,1); // ericw -- changed from glColor3f to work around intel 855 bug with "r_oldwater 0" and "scr_sbaralpha 0"
 	glDisable (GL_BLEND);
 	glEnable (GL_ALPHA_TEST);
@@ -297,7 +304,10 @@ Sbar_DrawCharacter -- johnfitz -- rewritten now that GL_SetCanvas is doing the w
 */
 void Sbar_DrawCharacter (int x, int y, int num)
 {
-	Draw_Character (x, y + 24, num);
+	if (r_glemu.value == 1)
+		Draw_Character (x, y + (200 - SBAR_HEIGHT), num);
+	else
+		Draw_Character (x, y + 24, num);
 }
 
 /*
@@ -307,7 +317,10 @@ Sbar_DrawString -- johnfitz -- rewritten now that GL_SetCanvas is doing the work
 */
 void Sbar_DrawString (int x, int y, const char *str)
 {
-	Draw_String (x, y + 24, str);
+	if (r_glemu.value == 1)
+		Draw_String (x, y + (200 - SBAR_HEIGHT), str);
+	else
+		Draw_String (x, y + 24, str);
 }
 
 /*
@@ -322,7 +335,10 @@ void Sbar_DrawScrollString (int x, int y, int width, const char *str)
 	float scale;
 	int len, ofs, left;
 
-	scale = CLAMP (1.0f, scr_sbarscale.value, (float)glwidth / 320.0f);
+	if (r_glemu.value == 1)
+		scale = (float)glwidth / 320.0f;
+	else
+		scale = CLAMP (1.0f, scr_sbarscale.value, (float)glwidth / 320.0f);
 	left = x * scale;
 	if (cl.gametype != GAME_DEATHMATCH)
 		left += (((float)glwidth - 320.0 * scale) / 2);
@@ -911,7 +927,10 @@ void Sbar_Draw (void)
 	GL_SetCanvas (CANVAS_DEFAULT); //johnfitz
 
 	//johnfitz -- don't waste fillrate by clearing the area behind the sbar
-	w = CLAMP (320.0f, scr_sbarscale.value * 320.0f, (float)glwidth);
+	if (r_glemu.value == 1)
+		w = (float)glwidth / 320.0f;
+	else
+		w = CLAMP (320.0f, scr_sbarscale.value * 320.0f, (float)glwidth);
 	if (sb_lines && glwidth > w)
 	{
 		if (scr_sbaralpha.value < 1)
@@ -926,7 +945,10 @@ void Sbar_Draw (void)
 	}
 	//johnfitz
 
-	GL_SetCanvas (CANVAS_SBAR); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_SBAR); //johnfitz
 
 	if (scr_viewsize.value < 110) //johnfitz -- check viewsize instead of sb_lines
 	{
@@ -1131,7 +1153,10 @@ void Sbar_DeathmatchOverlay (void)
 	char	num[12];
 	scoreboard_t	*s;
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 	pic = Draw_CachePic ("gfx/ranking.lmp");
 	M_DrawPic ((320-pic->width)/2, 8, pic);
@@ -1195,7 +1220,10 @@ void Sbar_DeathmatchOverlay (void)
 		y += 10;
 	}
 
-	GL_SetCanvas (CANVAS_SBAR); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_SBAR); //johnfitz
 }
 
 /*
@@ -1210,7 +1238,10 @@ void Sbar_MiniDeathmatchOverlay (void)
 	float	scale; //johnfitz
 	scoreboard_t	*s;
 
-	scale = CLAMP (1.0f, scr_sbarscale.value, (float)glwidth / 320.0f); //johnfitz
+	if (r_glemu.value == 1)
+		scale = (float)glwidth / 320.0f;
+	else
+		scale = CLAMP (1.0f, scr_sbarscale.value, (float)glwidth / 320.0f); //johnfitz
 
 	//MAX_SCOREBOARDNAME = 32, so total width for this overlay plus sbar is 632, but we can cut off some i guess
 	if (glwidth/scale < 512 || scr_viewsize.value >= 120) //johnfitz -- test should consider scr_sbarscale
@@ -1292,7 +1323,10 @@ void Sbar_IntermissionOverlay (void)
 		return;
 	}
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 	q_snprintf (time, sizeof (time), "%d:%02d", cl.completed_time / 60, cl.completed_time % 60);
 	q_snprintf (secrets, sizeof (secrets), "%d/%2d", cl.stats[STAT_SECRETS], cl.stats[STAT_TOTALSECRETS]);
@@ -1328,7 +1362,10 @@ void Sbar_FinaleOverlay (void)
 {
 	qpic_t	*pic;
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 	pic = Draw_CachePic ("gfx/finale.lmp");
 	Draw_Pic ( (320 - pic->width)/2, 16, pic); //johnfitz -- stretched menus

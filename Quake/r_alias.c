@@ -256,7 +256,10 @@ void GL_DrawAliasFrame_GLSL (aliashdr_t *paliashdr, lerpdata_t lerpdata, gltextu
 // set uniforms
 	GL_Uniform1fFunc (blendLoc, blend);
 	GL_Uniform3fFunc (shadevectorLoc, shadevector[0], shadevector[1], shadevector[2]);
-	GL_Uniform4fFunc (lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
+	if (r_glemu.value) // SERECKY APR-25-26: phony way to emulate glquake darker model rendering
+		GL_Uniform4fFunc (lightColorLoc, lightcolor[0] * 0.7, lightcolor[1] * 0.7, lightcolor[2] * 0.7, entalpha);
+	else
+		GL_Uniform4fFunc(lightColorLoc, lightcolor[0], lightcolor[1], lightcolor[2], entalpha);
 	GL_Uniform1iFunc (texLoc, 0);
 	GL_Uniform1iFunc (fullbrightTexLoc, 1);
 	GL_Uniform1iFunc (useFullbrightTexLoc, (fb != NULL) ? 1 : 0);
@@ -722,6 +725,7 @@ void R_DrawAliasModel (entity_t *e)
 	//
 	// draw it
 	//
+
 	if (r_drawflat_cheatsafe)
 	{
 		glDisable (GL_TEXTURE_2D);
@@ -903,6 +907,9 @@ cleanup:
 		glDisable (GL_ALPHA_TEST);
 	glColor3f(1,1,1);
 	glPopMatrix ();
+
+	if (r_shadows.value == 2)
+		GL_DrawAliasShadowOld(e, paliashdr, &lerpdata);
 }
 
 //johnfitz -- values for shadow matrix
@@ -942,9 +949,10 @@ void GL_DrawAliasShadow (entity_t *e)
 	R_SetupAliasFrame (paliashdr, e->frame, &lerpdata);
 	R_SetupEntityTransform (e, &lerpdata);
 	R_LightPoint (e->origin);
+
 	lheight = currententity->origin[2] - lightspot[2];
 
-// set up matrix
+	// set up matrix
 	glPushMatrix ();
 	glTranslatef (lerpdata.origin[0],  lerpdata.origin[1],  lerpdata.origin[2]);
 	glTranslatef (0,0,-lheight);
@@ -970,6 +978,116 @@ void GL_DrawAliasShadow (entity_t *e)
 
 //clean up
 	glPopMatrix ();
+}
+
+/*
+=============
+GL_DrawAliasShadowOld
+
+SERECKY APR-6-26: setting r_shadows to 2 uses the original shadow
+drawing function instead of the new one
+=============
+*/
+
+void GL_DrawAliasShadowOld (entity_t *e, aliashdr_t* paliashdr, lerpdata_t* lerpdata)
+{
+	trivertx_t	*verts1, *verts2;
+	float		blend, iblend;
+	qboolean	lerping;
+	int			*order;
+	vec3_t		point;
+	float		height, lheight;
+	int			count;
+
+	if (e == &cl.viewent || e->model->flags & MOD_NOSHADOW)
+		return;
+
+	lheight = currententity->origin[2] - lightspot[2];
+	height = 0;
+
+	if (lerpdata->pose1 != lerpdata->pose2)
+	{
+		lerping = true;
+		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
+		verts2  = verts1;
+		verts1 += lerpdata->pose1 * paliashdr->poseverts;
+		verts2 += lerpdata->pose2 * paliashdr->poseverts;
+		blend = lerpdata->blend;
+		iblend = 1.0f - blend;
+	}
+	else // poses the same means either 1. the entity has paused its animation, or 2. r_lerpmodels is disabled
+	{
+		lerping = false;
+		verts1  = (trivertx_t *)((byte *)paliashdr + paliashdr->posedata);
+		verts2  = verts1; // avoid bogus compiler warning
+		verts1 += lerpdata->pose1 * paliashdr->poseverts;
+		blend = iblend = 0; // avoid bogus compiler warning
+	}
+	order = (int *)((byte *)paliashdr + paliashdr->commands);
+	height = -lheight + 1.0;
+
+	glPushMatrix();
+	glTranslatef (lerpdata->origin[0], lerpdata->origin[1], lerpdata->origin[2]);
+	glRotatef (lerpdata->angles[1],  0, 0, 1);
+	glRotatef (-lerpdata->angles[0],  0, 1, 0);
+	glRotatef (lerpdata->angles[2],  1, 0, 0);
+	glDisable(GL_TEXTURE_2D);
+	glEnable(GL_BLEND);
+	glColor4f(0, 0, 0, 0.5);
+
+	while (1)
+	{
+		// get the vertex count and primitive type
+		count = *order++;
+		if (!count)
+			break;		// done
+		if (count < 0)
+		{
+			count = -count;
+			glBegin (GL_TRIANGLE_FAN);
+		}
+		else
+			glBegin (GL_TRIANGLE_STRIP);
+
+		do
+		{
+			// texture coordinates come from the draw list
+			// (skipped for shadows) glTexCoord2fv ((float *)order);
+			order += 2;
+
+			if (lerping)
+			{
+				// normals and vertexes come from the frame list
+				point[0] = (verts1->v[0] * iblend + verts2->v[0] * blend) * paliashdr->scale[0] + paliashdr->scale_origin[0];
+				point[1] = (verts1->v[1] * iblend + verts2->v[1] * blend) * paliashdr->scale[1] + paliashdr->scale_origin[1];
+				point[2] = (verts1->v[2] * iblend + verts2->v[2] * blend) * paliashdr->scale[2] + paliashdr->scale_origin[2];
+				verts1++;
+				verts2++;
+			}
+			else
+			{
+				// normals and vertexes come from the frame list
+				point[0] = verts1->v[0] * paliashdr->scale[0] + paliashdr->scale_origin[0];
+				point[1] = verts1->v[1] * paliashdr->scale[1] + paliashdr->scale_origin[1];
+				point[2] = verts1->v[2] * paliashdr->scale[2] + paliashdr->scale_origin[2];
+				verts1++;
+			}
+
+			point[0] -= shadevector[0]*(point[2]+lheight);
+			point[1] -= shadevector[1]*(point[2]+lheight);
+			point[2] = height;
+
+			//Con_Printf("%.2f %.2f %.2f\n", shadevector[0], shadevector[1], height);
+
+			glVertex3fv (point);
+		} while (--count);
+		glEnd ();
+	}
+
+	glEnable(GL_TEXTURE_2D);
+	glDisable(GL_BLEND);
+	glColor4f(1, 1, 1, 1);
+	glPopMatrix();
 }
 
 /*

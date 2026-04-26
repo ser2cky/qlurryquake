@@ -62,7 +62,7 @@ cvar_t	r_speeds = {"r_speeds","0",CVAR_NONE};
 cvar_t	r_pos = {"r_pos","0",CVAR_NONE};
 cvar_t	r_fullbright = {"r_fullbright","0",CVAR_NONE};
 cvar_t	r_lightmap = {"r_lightmap","0",CVAR_NONE};
-cvar_t	r_shadows = {"r_shadows","0",CVAR_ARCHIVE};
+cvar_t	r_shadows = {"r_shadows","2",CVAR_ARCHIVE}; // on by default coz it looks cool
 cvar_t	r_wateralpha = {"r_wateralpha","1",CVAR_ARCHIVE};
 cvar_t	r_litwater = {"r_litwater","1",CVAR_NONE};
 cvar_t	r_dynamic = {"r_dynamic","1",CVAR_ARCHIVE};
@@ -74,7 +74,7 @@ cvar_t	gl_cull = {"gl_cull","1",CVAR_NONE};
 cvar_t	gl_smoothmodels = {"gl_smoothmodels","1",CVAR_NONE};
 cvar_t	gl_affinemodels = {"gl_affinemodels","0",CVAR_NONE};
 cvar_t	gl_polyblend = {"gl_polyblend","1",CVAR_NONE};
-cvar_t	gl_flashblend = {"gl_flashblend","0",CVAR_ARCHIVE};
+cvar_t	gl_flashblend = {"gl_flashblend","1",CVAR_ARCHIVE};
 cvar_t	gl_playermip = {"gl_playermip","0",CVAR_NONE};
 cvar_t	gl_nocolors = {"gl_nocolors","0",CVAR_NONE};
 
@@ -86,18 +86,19 @@ cvar_t	r_drawflat = {"r_drawflat","0",CVAR_NONE};
 cvar_t	r_flatlightstyles = {"r_flatlightstyles", "0", CVAR_NONE};
 cvar_t	gl_fullbrights = {"gl_fullbrights", "1", CVAR_ARCHIVE};
 cvar_t	gl_farclip = {"gl_farclip", "65536", CVAR_ARCHIVE};
-cvar_t	gl_overbright = {"gl_overbright", "1", CVAR_ARCHIVE};
-cvar_t	gl_overbright_models = {"gl_overbright_models", "1", CVAR_ARCHIVE};
+cvar_t	gl_overbright = {"gl_overbright", "0", CVAR_ARCHIVE}; // default to glquake style
+cvar_t	gl_overbright_models = {"gl_overbright_models", "0", CVAR_ARCHIVE}; // default to glquake style
 cvar_t	r_oldskyleaf = {"r_oldskyleaf", "0", CVAR_NONE};
 cvar_t	r_drawworld = {"r_drawworld", "1", CVAR_NONE};
 cvar_t	r_showtris = {"r_showtris", "0", CVAR_NONE};
 cvar_t	r_showbboxes = {"r_showbboxes", "0", CVAR_NONE};
-cvar_t	r_lerpmodels = {"r_lerpmodels", "1", CVAR_NONE};
-cvar_t	r_lerpmove = {"r_lerpmove", "1", CVAR_NONE};
-cvar_t	r_nolerp_list = {"r_nolerp_list", "progs/flame.mdl,progs/flame2.mdl,progs/braztall.mdl,progs/brazshrt.mdl,progs/longtrch.mdl,progs/flame_pyre.mdl,progs/v_saw.mdl,progs/v_xfist.mdl,progs/h2stuff/newfire.mdl", CVAR_NONE};
-cvar_t	r_noshadow_list = {"r_noshadow_list", "progs/flame2.mdl,progs/flame.mdl,progs/bolt1.mdl,progs/bolt2.mdl,progs/bolt3.mdl,progs/laser.mdl", CVAR_NONE};
+cvar_t	r_lerpmodels = {"r_lerpmodels", "0", CVAR_NONE}; // default to glquake style
+cvar_t	r_lerpmove = {"r_lerpmove", "0", CVAR_NONE}; // default to glquake style
+cvar_t	r_nolerp_list = {"r_nolerp_list", "", CVAR_NONE}; // default to glquake style
+cvar_t	r_noshadow_list = {"r_noshadow_list", "", CVAR_NONE}; // default to glquake style
 
 extern cvar_t	r_vfog;
+extern cvar_t	r_glemu;
 //johnfitz
 
 cvar_t	gl_zfix = {"gl_zfix", "0", CVAR_NONE}; // QuakeSpasm z-fighting fix
@@ -478,6 +479,7 @@ void GL_SetFrustum(float fovx, float fovy)
 	float xmax, ymax;
 	xmax = NEARCLIP * tan( fovx * M_PI / 360.0 );
 	ymax = NEARCLIP * tan( fovy * M_PI / 360.0 );
+
 	glFrustum(-xmax + frustum_skew, xmax + frustum_skew, -ymax, ymax, NEARCLIP, gl_farclip.value);
 }
 
@@ -488,16 +490,31 @@ R_SetupGL
 */
 void R_SetupGL (void)
 {
+	float xscale, yscale;
 	int scale;
 
 	//johnfitz -- rewrote this section
 	glMatrixMode(GL_PROJECTION);
 	glLoadIdentity ();
 	scale =  CLAMP(1, (int)r_scale.value, 4); // ericw -- see R_ScaleView
-	glViewport (glx + r_refdef.vrect.x,
-				gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height,
-				r_refdef.vrect.width / scale,
-				r_refdef.vrect.height / scale);
+
+	if (r_glemu.value == 1)
+	{
+		xscale = (float)glwidth / 320.0;
+		yscale = (float)glheight / 200.0;
+		glViewport(glx + r_refdef.vrect.x * xscale,
+			gly + glheight - (r_refdef.vrect.y * yscale) - (r_refdef.vrect.height * yscale),
+			xscale * r_refdef.vrect.width / scale,
+			yscale * r_refdef.vrect.height / scale);
+	}
+	else
+	{
+		glViewport(glx + r_refdef.vrect.x,
+			gly + glheight - r_refdef.vrect.y - r_refdef.vrect.height,
+			r_refdef.vrect.width / scale,
+			r_refdef.vrect.height / scale);
+	}
+
 	//johnfitz
 
 	GL_SetFrustum (r_fovx, r_fovy); //johnfitz -- use r_fov* vars
@@ -583,6 +600,7 @@ void R_SetupView (void)
 	//johnfitz -- calculate r_fovx and r_fovy here
 	r_fovx = r_refdef.fov_x;
 	r_fovy = r_refdef.fov_y;
+
 	if (r_waterwarp.value)
 	{
 		int contents = Mod_PointInLeaf (r_origin, cl.worldmodel)->contents;
@@ -888,7 +906,7 @@ void R_DrawShadows (void)
 		return;
 
 	// Use stencil buffer to prevent self-intersecting shadows, from Baker (MarkV)
-	if (gl_stencilbits)
+	if (gl_stencilbits && r_shadows.value != 2)
 	{
 		glClear(GL_STENCIL_BUFFER_BIT);
 		glStencilFunc(GL_EQUAL, 0, ~0);
@@ -906,10 +924,11 @@ void R_DrawShadows (void)
 		if (currententity == &cl.viewent)
 			return;
 
-		GL_DrawAliasShadow (currententity);
+		if (r_shadows.value != 2)
+			GL_DrawAliasShadow(currententity);
 	}
 
-	if (gl_stencilbits)
+	if (gl_stencilbits && r_shadows.value != 2)
 	{
 		glDisable(GL_STENCIL_TEST);
 	}

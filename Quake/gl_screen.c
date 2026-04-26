@@ -80,7 +80,7 @@ float		scr_conlines;		// lines of console to display
 //johnfitz -- new cvars
 cvar_t		scr_menuscale = {"scr_menuscale", "1", CVAR_ARCHIVE};
 cvar_t		scr_sbarscale = {"scr_sbarscale", "1", CVAR_ARCHIVE};
-cvar_t		scr_sbaralpha = {"scr_sbaralpha", "0.75", CVAR_ARCHIVE};
+cvar_t		scr_sbaralpha = {"scr_sbaralpha", "1", CVAR_ARCHIVE};
 cvar_t		scr_conwidth = {"scr_conwidth", "0", CVAR_ARCHIVE};
 cvar_t		scr_conscale = {"scr_conscale", "1", CVAR_ARCHIVE};
 cvar_t		scr_crosshairscale = {"scr_crosshairscale", "1", CVAR_ARCHIVE};
@@ -100,6 +100,7 @@ cvar_t		scr_printspeed = {"scr_printspeed","8",CVAR_NONE};
 cvar_t		gl_triplebuffer = {"gl_triplebuffer", "1", CVAR_ARCHIVE};
 
 cvar_t		cl_gun_fovscale = {"cl_gun_fovscale","1",CVAR_ARCHIVE}; // Qrack
+cvar_t		r_glemu = {"r_glemu","1",CVAR_ARCHIVE}; // default to glquake style
 
 extern	cvar_t	crosshair;
 
@@ -169,7 +170,10 @@ void SCR_DrawCenterString (void) //actually do the drawing
 	int		x, y;
 	int		remaining;
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 // the finale prints the characters one at a time
 	if (cl.intermission)
@@ -245,7 +249,7 @@ float AdaptFovx (float fov_x, float width, float height)
 	if (fov_x < 1 || fov_x > 179)
 		Sys_Error ("Bad fov: %f", fov_x);
 
-	if (!scr_fov_adapt.value)
+	if (!scr_fov_adapt.value || r_glemu.value == 1)
 		return fov_x;
 	if ((x = height / width) == 0.75)
 		return fov_x;
@@ -283,6 +287,18 @@ Internal use only
 static void SCR_CalcRefdef (void)
 {
 	float		size, scale; //johnfitz -- scale
+	int			width, height;
+
+	if (r_glemu.value == 1)
+	{
+		width = 320;
+		height = 200;
+	}
+	else
+	{
+		width = glwidth;
+		height = glheight;
+	}
 
 // force the status bar to redraw
 	Sbar_Changed ();
@@ -305,7 +321,11 @@ static void SCR_CalcRefdef (void)
 
 	//johnfitz -- rewrote this section
 	size = scr_viewsize.value;
-	scale = CLAMP (1.0f, scr_sbarscale.value, (float)glwidth / 320.0f);
+
+	if (r_glemu.value == 1)
+		scale = 1.0;
+	else
+		scale = CLAMP(1.0f, scr_sbarscale.value, (float)glwidth / 320.0f);
 
 	if (size >= 120 || cl.intermission || scr_sbaralpha.value < 1) //johnfitz -- scr_sbaralpha.value
 		sb_lines = 0;
@@ -318,13 +338,19 @@ static void SCR_CalcRefdef (void)
 	//johnfitz
 
 	//johnfitz -- rewrote this section
-	r_refdef.vrect.width = q_max(glwidth * size, 96.0f); //no smaller than 96, for icons
-	r_refdef.vrect.height = q_min((int)(glheight * size), glheight - sb_lines); //make room for sbar
-	r_refdef.vrect.x = (glwidth - r_refdef.vrect.width)/2;
-	r_refdef.vrect.y = (glheight - sb_lines - r_refdef.vrect.height)/2;
+	r_refdef.vrect.width = q_max(width * size, 96.0f); //no smaller than 96, for icons
+	r_refdef.vrect.height = q_min((int)(height * size), height - sb_lines); //make room for sbar
+	r_refdef.vrect.x = (width - r_refdef.vrect.width)/2;
+	r_refdef.vrect.y = (height - sb_lines - r_refdef.vrect.height)/2;
 	//johnfitz
 
-	r_refdef.fov_x = AdaptFovx(scr_fov.value, vid.width, vid.height);
+	if (!r_glemu.value == 1)
+	{
+		width = vid.width;
+		height = vid.height;
+	}
+
+	r_refdef.fov_x = AdaptFovx(scr_fov.value, width, height);
 	r_refdef.fov_y = CalcFovy (r_refdef.fov_x, r_refdef.vrect.width, r_refdef.vrect.height);
 
 	scr_vrect = r_refdef.vrect;
@@ -369,10 +395,40 @@ SCR_Conwidth_f -- johnfitz -- called when scr_conwidth or scr_conscale changes
 void SCR_Conwidth_f (cvar_t *var)
 {
 	vid.recalc_refdef = 1;
+
+	if (r_glemu.value == 1)
+	{
+		vid.conwidth = 320;
+		vid.conheight = 200;
+		return;
+	}
+
 	vid.conwidth = (scr_conwidth.value > 0) ? (int)scr_conwidth.value : (scr_conscale.value > 0) ? (int)(vid.width/scr_conscale.value) : vid.width;
 	vid.conwidth = CLAMP (320, vid.conwidth, vid.width);
 	vid.conwidth &= 0xFFFFFFF8;
 	vid.conheight = vid.conwidth * vid.height / vid.width;
+}
+
+/*
+==================
+GLQuake_Emu_Callback
+==================
+*/
+
+void GLQuake_Emu_Callback (cvar_t* var)
+{
+	vid.recalc_refdef = 1;
+
+	if (r_glemu.value == 1)
+	{
+		vid.conwidth = 320;
+		vid.conheight = 200;
+		return;
+	}
+
+	// SERECKY APR-6-26:
+	// make console reset back to it's normal size
+	SCR_Conwidth_f(var);
 }
 
 //============================================================================
@@ -422,6 +478,10 @@ void SCR_Init (void)
 	Cvar_RegisterVariable (&scr_printspeed);
 	Cvar_RegisterVariable (&gl_triplebuffer);
 	Cvar_RegisterVariable (&cl_gun_fovscale);
+
+	// SERECKY APR-6-26: glquake emu
+	Cvar_SetCallback (&r_glemu, &GLQuake_Emu_Callback);
+	Cvar_RegisterVariable (&r_glemu);
 
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 	Cmd_AddCommand ("sizeup",SCR_SizeUp_f);
@@ -611,7 +671,10 @@ void SCR_DrawPause (void)
 	if (!scr_showpause.value)		// turn off for screenshots
 		return;
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 	pic = Draw_CachePic ("gfx/pause.lmp");
 	Draw_Pic ( (320 - pic->width)/2, (240 - 48 - pic->height)/2, pic); //johnfitz -- stretched menus
@@ -631,7 +694,10 @@ void SCR_DrawLoading (void)
 	if (!scr_drawloading)
 		return;
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 	pic = Draw_CachePic ("gfx/loading.lmp");
 	Draw_Pic ( (320 - pic->width)/2, (240 - 48 - pic->height)/2, pic); //johnfitz -- stretched menus
@@ -649,8 +715,16 @@ void SCR_DrawCrosshair (void)
 	if (!crosshair.value)
 		return;
 
-	GL_SetCanvas (CANVAS_CROSSHAIR);
-	Draw_Character (-4, -4, '+'); //0,0 is center of viewport
+	if (r_glemu.value == 1)
+	{
+		GL_SetCanvas (CANVAS_DEFAULT);
+		Draw_Character (r_refdef.vrect.x + r_refdef.vrect.width / 2, r_refdef.vrect.y + r_refdef.vrect.height / 2, '+');
+	}
+	else
+	{
+		GL_SetCanvas (CANVAS_CROSSHAIR);
+		Draw_Character (-4, -4, '+'); //0,0 is center of viewport
+	}
 }
 
 
@@ -889,7 +963,10 @@ void SCR_DrawNotifyString (void)
 	int		j;
 	int		x, y;
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 	start = scr_notifystring;
 
@@ -988,6 +1065,7 @@ void SCR_TileClear (void)
 	//ericw -- added check for glsl gamma. TODO: remove this ugly optimization?
 	if (scr_tileclear_updates >= vid.numpages && !gl_clear.value && !(gl_glsl_gamma_able && vid_gamma.value != 1))
 		return;
+
 	scr_tileclear_updates++;
 
 	if (r_refdef.vrect.x > 0)
@@ -1068,6 +1146,9 @@ void SCR_UpdateScreen (void)
 
 	//FIXME: only call this when needed
 	SCR_TileClear ();
+
+	// SERECKY APR-5-26: temp workaround for backtile scaling in glquake emu mode.
+	GL_SetCanvas(CANVAS_DEFAULT);
 
 	if (scr_drawdialog) //new game confirm
 	{

@@ -115,6 +115,7 @@ typedef struct texture_s
 #define SURF_DRAWSLIME		0x800
 #define SURF_DRAWTELE		0x1000
 #define SURF_DRAWWATER		0x2000
+#define SURF_DONTWARP		0x4000 // WATER worp
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
@@ -136,6 +137,7 @@ typedef struct glpoly_s
 {
 	struct	glpoly_s	*next;
 	struct	glpoly_s	*chain;
+	int		flags;			// for SURF_UNDERWATER
 	int		numverts;
 	float	verts[4][VERTEXSIZE];	// variable sized (xyz s1t1 s2t2)
 } glpoly_t;

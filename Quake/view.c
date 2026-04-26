@@ -65,7 +65,11 @@ cvar_t	gl_cshiftpercent_damage = {"gl_cshiftpercent_damage", "100", CVAR_NONE}; 
 cvar_t	gl_cshiftpercent_bonus = {"gl_cshiftpercent_bonus", "100", CVAR_NONE}; // QuakeSpasm
 cvar_t	gl_cshiftpercent_powerup = {"gl_cshiftpercent_powerup", "100", CVAR_NONE}; // QuakeSpasm
 
-cvar_t	r_viewmodel_quake = {"r_viewmodel_quake", "0", CVAR_ARCHIVE};
+cvar_t	r_viewmodel_quake = {"r_viewmodel_quake", "1", CVAR_ARCHIVE}; // default to glquake style
+
+#ifdef FEED_MY_TISM
+cvar_t	viewbob_hl1 = { "viewbob_hl1", "0", CVAR_ARCHIVE };
+#endif
 
 vec3_t	v_punchangles[2]; //johnfitz -- copied from cl.punchangle.  0 is current, 1 is previous value. never the same unless map just loaded
 
@@ -804,6 +808,15 @@ void V_CalcRefdef (void)
 		view->origin[i] += forward[i]*bob*0.4;
 	view->origin[2] += bob;
 
+#ifdef FEED_MY_TISM
+	if (viewbob_hl1.value)
+	{
+		view->angles[YAW] -= bob * 0.5;
+		view->angles[ROLL] -= bob * 1;
+		view->angles[PITCH] -= bob * 0.3;
+	}
+#endif
+
 	//johnfitz -- removed all gun position fudging code (was used to keep gun from getting covered by sbar)
 	//MarkV -- restored this with r_viewmodel_quake cvar
 	if (r_viewmodel_quake.value)
@@ -971,5 +984,8 @@ void V_Init (void)
 	Cvar_RegisterVariable (&v_gunkick); //johnfitz
 
 	Cvar_RegisterVariable (&r_viewmodel_quake); //MarkV
+#ifdef FEED_MY_TISM
+	Cvar_RegisterVariable (&viewbob_hl1);
+#endif
 }
 

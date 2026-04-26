@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //extern unsigned char d_15to8table[65536]; //johnfitz -- never used
 
-cvar_t		scr_conalpha = {"scr_conalpha", "0.5", CVAR_ARCHIVE}; //johnfitz
+cvar_t		scr_conalpha = {"scr_conalpha", "1", CVAR_ARCHIVE}; //johnfitz
 
 qpic_t		*draw_disc;
 qpic_t		*draw_backtile;
@@ -516,7 +516,7 @@ void Draw_Pic (int x, int y, qpic_t *pic)
 	glTexCoord2f (gl->sh, gl->tl);
 	glVertex2f (x+pic->width, y);
 	glTexCoord2f (gl->sh, gl->th);
-	glVertex2f (x+pic->width, y+pic->height);
+	glVertex2f (x+pic->width, y+ pic->height);
 	glTexCoord2f (gl->sl, gl->th);
 	glVertex2f (x, y+pic->height);
 	glEnd ();
@@ -599,6 +599,8 @@ void Draw_TileClear (int x, int y, int w, int h)
 	glpic_t	*gl;
 
 	gl = (glpic_t *)draw_backtile->data;
+
+	GL_SetCanvas (CANVAS_DEFAULT);
 
 	glColor3f (1,1,1);
 	GL_Bind (gl->gltexture);
@@ -693,9 +695,18 @@ void GL_SetCanvas (canvastype newcanvas)
 
 	switch(newcanvas)
 	{
+	// SERECKY APR-6-26: default to this canvas if we've turned on glquake emu. mode
 	case CANVAS_DEFAULT:
-		glOrtho (0, glwidth, glheight, 0, -99999, 99999);
-		glViewport (glx, gly, glwidth, glheight);
+		if (r_glemu.value == 1)
+		{
+			glOrtho (0, 320, 200, 0, -99999, 99999);
+			glViewport (glx, gly, glwidth, glheight);
+		}
+		else
+		{
+			glOrtho (0, glwidth, glheight, 0, -99999, 99999);
+			glViewport (glx, gly, glwidth, glheight);
+		}
 		break;
 	case CANVAS_CONSOLE:
 		lines = vid.conheight - (scr_con_current * vid.conheight / glheight);

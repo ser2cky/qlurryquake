@@ -200,6 +200,36 @@ static void R_EndTransparentDrawing (float entalpha)
 
 /*
 ================
+DrawUnderwaterPoly
+================
+*/
+
+void DrawUnderwaterPoly (glpoly_t *p, qboolean lightmap)
+{
+	int		i;
+	float	*v;
+	vec3_t	nv;
+
+	glBegin (GL_POLYGON);
+	v = p->verts[0];
+	for (i=0 ; i<p->numverts ; i++, v+= VERTEXSIZE)
+	{
+		if (lightmap)
+			glTexCoord2f (v[5], v[6]);
+		else
+			glTexCoord2f (v[3], v[4]);
+
+		nv[0] = v[0] + 8*sin(v[1]*0.05+realtime)*sin(v[2]*0.05+realtime);
+		nv[1] = v[1] + 8*sin(v[0]*0.05+realtime)*sin(v[2]*0.05+realtime);
+		nv[2] = v[2];
+
+		glVertex3fv (nv);
+	}
+	glEnd ();
+}
+
+/*
+================
 R_DrawTextureChains_ShowTris -- johnfitz
 ================
 */
@@ -549,6 +579,8 @@ static GLuint r_world_program;
 extern GLuint gl_bmodel_vbo;
 
 // uniforms used in vert shader
+static GLint	time;
+static GLint	warpUnderwater;
 
 // uniforms used in frag shader
 static GLint  texLoc;
@@ -783,11 +815,12 @@ void R_DrawTextureChains_White (qmodel_t *model, texchain_t chain)
 R_DrawLightmapChains -- johnfitz -- R_BlendLightmaps stripped down to almost nothing
 ================
 */
-void R_DrawLightmapChains (void)
+void R_DrawLightmapChains ()
 {
 	int			i, j;
 	glpoly_t	*p;
 	float		*v;
+	vec3_t		nv; // SERECKY APR-23-26: water warpus
 
 	for (i=0 ; i<lightmap_count ; i++)
 	{
@@ -802,7 +835,16 @@ void R_DrawLightmapChains (void)
 			for (j=0 ; j<p->numverts ; j++, v+= VERTEXSIZE)
 			{
 				glTexCoord2f (v[5], v[6]);
-				glVertex3fv (v);
+				if (p->flags & SURF_UNDERWATER)
+				{
+					nv[0] = v[0] + 8 * sin(v[1] * 0.05 + realtime) * sin(v[2] * 0.05 + realtime);
+					nv[1] = v[1] + 8 * sin(v[0] * 0.05 + realtime) * sin(v[2] * 0.05 + realtime);
+					nv[2] = v[2];
+
+					glVertex3fv(nv);
+				}
+				else
+					glVertex3fv (v);
 			}
 			glEnd ();
 			rs_brushpasses++;
@@ -834,14 +876,27 @@ void GLWorld_CreateShaders (void)
 		"attribute vec4 Vert;\n"
 		"attribute vec2 TexCoords;\n"
 		"attribute vec2 LMCoords;\n"
+		"uniform bool WarpUnderwater;\n"
+		"uniform float time;\n"
 		"\n"
 		"varying float FogFragCoord;\n"
 		"\n"
+		"vec4 Vrt;\n"
 		"void main()\n"
 		"{\n"
 		"	gl_TexCoord[0] = vec4(TexCoords, 0.0, 0.0);\n"
 		"	gl_TexCoord[1] = vec4(LMCoords, 0.0, 0.0);\n"
-		"	gl_Position = gl_ModelViewProjectionMatrix * Vert;\n"
+		"	Vrt[0] = Vert[0];\n"
+		"	Vrt[1] = Vert[1];\n"
+		"	Vrt[2] = Vert[2];\n"
+		"	Vrt[3] = Vert[3];\n"
+		"	if (WarpUnderwater)\n"
+		"	{\n"
+		"		Vrt[0] = Vert[0] + 8.0 * sin(Vert[1]*0.05+time)*sin(Vert[2]*0.05+time);\n"
+		"		Vrt[1] = Vert[1] + 8.0 * sin(Vert[0]*0.05+time)*sin(Vert[2]*0.05+time);\n"
+		"		Vrt[2] = Vert[2];\n"
+		"	}\n"
+		"	gl_Position = gl_ModelViewProjectionMatrix * Vrt;\n"
 		"	FogFragCoord = gl_Position.w;\n"
 		"}\n";
 	
@@ -898,7 +953,10 @@ void GLWorld_CreateShaders (void)
 		useAlphaTestLoc = GL_GetUniformLocation (&r_world_program, "UseAlphaTest");
 		useLightmapWideLoc = GL_GetUniformLocation (&r_world_program, "UseLightmapWide");
 		useLightmapOnlyLoc = GL_GetUniformLocation (&r_world_program, "UseLightmapOnly");
+		useLightmapOnlyLoc = GL_GetUniformLocation (&r_world_program, "WarpUnderwater");
 		alphaLoc = GL_GetUniformLocation (&r_world_program, "Alpha");
+		warpUnderwater = GL_GetUniformLocation (&r_world_program, "WarpUnderwater");
+		time = GL_GetUniformLocation (&r_world_program, "time");
 	}
 }
 
@@ -990,15 +1048,20 @@ void R_DrawTextureChains_GLSL (qmodel_t *model, entity_t *ent, texchain_t chain)
 				bound = true;
 				lastlightmap = s->lightmaptexturenum;
 			}
-				
+
 			if (s->lightmaptexturenum != lastlightmap)
 				R_FlushBatch ();
 
 			GL_SelectTexture (GL_TEXTURE1);
 			GL_Bind (lightmaps[s->lightmaptexturenum].texture);
 			lastlightmap = s->lightmaptexturenum;
-			R_BatchSurface (s);
 
+			GL_Uniform1fFunc(warpUnderwater, false);
+
+			if ((s->flags & SURF_UNDERWATER) && (r_oldwater.value == 2))
+				continue;
+
+			R_BatchSurface(s);
 			rs_brushpasses++;
 		}
 
@@ -1006,6 +1069,64 @@ void R_DrawTextureChains_GLSL (qmodel_t *model, entity_t *ent, texchain_t chain)
 
 		if (bound && t->texturechains[chain]->flags & SURF_DRAWFENCE)
 			GL_Uniform1iFunc (useAlphaTestLoc, 0); // Flip alpha test back off
+	}
+
+	// Water warping
+	if (r_oldwater.value == 2)
+	{
+		for (i = 0; i < model->numtextures; i++)
+		{
+			t = model->textures[i];
+			if (!t || !t->texturechains[chain])
+				continue;
+			if (t->texturechains[chain]->flags & (SURF_DRAWTURB | SURF_DRAWTILED | SURF_NOTEXTURE))
+				continue;
+			if (!(t->texturechains[chain]->flags & SURF_UNDERWATER))
+				continue;
+			if (gl_fullbrights.value && (fullbright = R_TextureAnimation(t, ent != NULL ? ent->frame : 0)->fullbright))
+			{
+				GL_SelectTexture(GL_TEXTURE2);
+				GL_Bind(fullbright);
+				GL_Uniform1iFunc(useFullbrightTexLoc, 1);
+			}
+			else
+				GL_Uniform1iFunc(useFullbrightTexLoc, 0);
+
+			GL_Uniform1fFunc(warpUnderwater, true);
+			GL_Uniform1fFunc(time, realtime);
+
+			R_ClearBatch();
+			bound = false;
+			lastlightmap = 0; // avoid compiler warning
+			for (s = t->texturechains[chain]; s; s = s->texturechain)
+			{
+				if (!bound) //only bind once we are sure we need this texture
+				{
+					GL_SelectTexture(GL_TEXTURE0);
+					GL_Bind((R_TextureAnimation(t, ent != NULL ? ent->frame : 0))->gltexture);
+					if (t->texturechains[chain]->flags & SURF_DRAWFENCE)
+						GL_Uniform1iFunc(useAlphaTestLoc, 1); // Flip alpha test back on
+					bound = true;
+					lastlightmap = s->lightmaptexturenum;
+				}
+
+				if (s->lightmaptexturenum != lastlightmap)
+					R_FlushBatch();
+				GL_SelectTexture(GL_TEXTURE1);
+				GL_Bind(lightmaps[s->lightmaptexturenum].texture);
+				lastlightmap = s->lightmaptexturenum;
+
+				if (!(s->flags & SURF_UNDERWATER))
+					continue;
+
+				R_BatchSurface(s);
+				rs_brushpasses++;
+			}
+			R_FlushBatch();
+
+			if (bound && t->texturechains[chain]->flags & SURF_UNDERWATER)
+				GL_Uniform1iFunc(warpUnderwater, false);
+		}
 	}
 
 	// clean up

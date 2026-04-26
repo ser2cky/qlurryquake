@@ -1869,6 +1869,8 @@ static void Mod_ProcessLeafs_S (dsleaf_t *in, int filelen)
 {
 	mleaf_t		*out;
 	int			i, j, count, p;
+	qboolean	isnotmap = true;
+	char		s[80];
 
 	if (filelen % sizeof(*in))
 		Sys_Error ("Mod_ProcessLeafs: funny lump size in %s", loadmodel->name);
@@ -1882,6 +1884,12 @@ static void Mod_ProcessLeafs_S (dsleaf_t *in, int filelen)
 
 	loadmodel->leafs = out;
 	loadmodel->numleafs = count;
+
+	q_snprintf (s, sizeof(s), "maps/%s.bsp", cl.worldmodel);
+	if (!Q_strcmp(s, loadmodel->name))
+		isnotmap = false;
+
+	Con_Printf("%s %s\n", loadmodel->name, s);
 
 	for (i=0 ; i<count ; i++, in++, out++)
 	{
@@ -1907,7 +1915,15 @@ static void Mod_ProcessLeafs_S (dsleaf_t *in, int filelen)
 		for (j=0 ; j<4 ; j++)
 			out->ambient_sound_level[j] = in->ambient_level[j];
 
-		//johnfitz -- removed code to mark surfaces as SURF_UNDERWATER
+		// gl underwater warp
+		if (out->contents != CONTENTS_EMPTY)
+		{
+			for (j=0 ; j<out->nummarksurfaces ; j++)
+			{
+				out->firstmarksurface[j]->flags |= SURF_UNDERWATER;
+				//Con_Printf("underwater found\n");
+			}
+		}
 	}
 }
 
@@ -1950,7 +1966,12 @@ static void Mod_ProcessLeafs_L1 (dl1leaf_t *in, int filelen)
 		for (j=0 ; j<4 ; j++)
 			out->ambient_sound_level[j] = in->ambient_level[j];
 
-		//johnfitz -- removed code to mark surfaces as SURF_UNDERWATER
+		// gl underwater warp
+		if (out->contents != CONTENTS_EMPTY)
+		{
+			for (j = 0; j < out->nummarksurfaces; j++)
+				out->firstmarksurface[j]->flags |= SURF_UNDERWATER;
+		}
 	}
 }
 
@@ -1993,7 +2014,12 @@ static void Mod_ProcessLeafs_L2 (dl2leaf_t *in, int filelen)
 		for (j=0 ; j<4 ; j++)
 			out->ambient_sound_level[j] = in->ambient_level[j];
 
-		//johnfitz -- removed code to mark surfaces as SURF_UNDERWATER
+		// gl underwater warp
+		if (out->contents != CONTENTS_EMPTY)
+		{
+			for (j = 0; j < out->nummarksurfaces; j++)
+				out->firstmarksurface[j]->flags |= SURF_UNDERWATER;
+		}
 	}
 }
 

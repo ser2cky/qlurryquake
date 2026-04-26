@@ -37,10 +37,24 @@ static particle_t	*active_particles, *free_particles, *particles;
 static int	r_numparticles;
 
 static gltexture_t *particletexture, *particletexture1, *particletexture2, *particletexture3; //johnfitz
+static gltexture_t *particletexture4;
 static float texturescalefactor; //johnfitz -- compensate for apparent size of different particle textures
 
-cvar_t	r_particles = {"r_particles","1", CVAR_ARCHIVE}; //johnfitz
-cvar_t	r_quadparticles = {"r_quadparticles","1", CVAR_ARCHIVE}; //johnfitz
+cvar_t	r_particles = {"r_particles","3", CVAR_ARCHIVE}; //johnfitz // default to glquake style
+cvar_t	r_quadparticles = {"r_quadparticles","0", CVAR_ARCHIVE}; //johnfitz // default to glquake style
+
+// SERECKY APR-25-26: hardcoded glquake shadow
+byte	dottexture[8][8] =
+{
+	{0,1,1,0,0,0,0,0},
+	{1,1,1,1,0,0,0,0},
+	{1,1,1,1,0,0,0,0},
+	{0,1,1,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0},
+	{0,0,0,0,0,0,0,0},
+};
 
 /*
 ===============
@@ -72,6 +86,7 @@ void R_InitParticleTextures (void)
 	static byte	particle1_data[64*64*4];
 	static byte	particle2_data[2*2*4];
 	static byte	particle3_data[64*64*4];
+	static byte	particle4_data[8*8*4];
 	byte		*dst;
 
 	// particle texture 1 -- circle
@@ -110,9 +125,22 @@ void R_InitParticleTextures (void)
 		}
 	particletexture3 = TexMgr_LoadImage (NULL, "particle3", 64, 64, SRC_RGBA, particle3_data, "", (src_offset_t)particle3_data, TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
 
+	// particle texture 4 -- glquake crude 8x8 particle texture
+	dst = particle4_data;
+	for (x=0 ; x<8 ; x++)
+		for (y=0 ; y<8 ; y++)
+		{
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = 255;
+			*dst++ = dottexture[x][y] * 255;
+		}
+	particletexture4 = TexMgr_LoadImage (NULL, "particle4", 8, 8, SRC_RGBA, particle4_data, "", (src_offset_t)particle4_data, TEXPREF_PERSIST | TEXPREF_ALPHA | TEXPREF_LINEAR);
+
+
 	//set default
-	particletexture = particletexture1;
-	texturescalefactor = 1.27;
+	particletexture = particletexture4;
+	texturescalefactor = 1.0;
 }
 
 /*
@@ -132,10 +160,10 @@ static void R_SetParticleTexture_f (cvar_t *var)
 		particletexture = particletexture2;
 		texturescalefactor = 1.0;
 		break;
-//	case 3:
-//		particletexture = particletexture3;
-//		texturescalefactor = 1.5;
-//		break;
+	case 3:
+		particletexture = particletexture4;
+		texturescalefactor = 1.0;
+		break;
 	}
 }
 
@@ -901,8 +929,10 @@ void R_DrawParticles (void)
 			scale = (p->org[0] - r_origin[0]) * vpn[0]
 				  + (p->org[1] - r_origin[1]) * vpn[1]
 				  + (p->org[2] - r_origin[2]) * vpn[2];
-			if (scale < 20)
+			if (scale < 20 && !r_glemu.value)
 				scale = 1 + 0.08; //johnfitz -- added .08 to be consistent
+			else if (scale < 20)
+				scale = 1;
 			else
 				scale = 1 + scale * 0.004;
 

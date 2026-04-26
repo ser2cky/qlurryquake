@@ -24,9 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t r_drawflat;
 
-cvar_t r_oldwater = {"r_oldwater", "0", CVAR_ARCHIVE};
+cvar_t r_oldwater = {"r_oldwater", "1", CVAR_ARCHIVE}; // default to glquake style
 cvar_t r_waterquality = {"r_waterquality", "8", CVAR_NONE};
-cvar_t r_waterwarp = {"r_waterwarp", "1", CVAR_NONE};
+cvar_t r_waterwarp = {"r_waterwarp", "0", CVAR_NONE}; // default to glquake style
 
 int gl_warpimagesize;
 float load_subdivide_size; //johnfitz -- remember what subdivide_size value was when this map was loaded
@@ -37,6 +37,7 @@ static const float	turbsin[] = {
 
 #define WARPCALC(s,t) ((s + turbsin[(int)((t*2)+(cl.time*(128.0/M_PI))) & 255]) * (1.0/64)) //johnfitz -- correct warp
 #define WARPCALC2(s,t) ((s + turbsin[(int)((t*0.125+cl.time)*(128.0/M_PI)) & 255]) * (1.0/64)) //johnfitz -- old warp
+#define TURBSCALE (256.0 / (2 * M_PI)) // for old warp
 
 //==============================================================================
 //
@@ -205,6 +206,7 @@ void DrawWaterPoly (glpoly_t *p)
 		glEnd ();
 	}
 }
+
 
 //==============================================================================
 //

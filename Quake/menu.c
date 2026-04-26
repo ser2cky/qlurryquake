@@ -1689,8 +1689,8 @@ qboolean M_Quit_TextEntry (void)
 
 void M_Quit_Draw (void) //johnfitz -- modified for new quit message
 {
-	char	msg1[] = "QuakeSpasm " QUAKESPASM_VER_STRING;
-	char	msg2[] = "by Ozkan Sezer,Eric Wasylishen,others"; /* msg2/msg3 are [38] at most */
+	char	msg1[] = "QlurryQuake " QUAKESPASM_VER_STRING;
+	char	msg2[] = "fork of QuakeSpasm by Serecky"; /* msg2/msg3 are [38] at most */
 	char	msg3[] = "Press y to quit";
 	int		boxlen;
 
@@ -2586,7 +2586,10 @@ void M_Draw (void)
 		m_recursiveDraw = false;
 	}
 
-	GL_SetCanvas (CANVAS_MENU); //johnfitz
+	if (r_glemu.value == 1)
+		GL_SetCanvas (CANVAS_DEFAULT);
+	else
+		GL_SetCanvas (CANVAS_MENU); //johnfitz
 
 	switch (m_state)
 	{

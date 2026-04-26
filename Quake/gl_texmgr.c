@@ -634,7 +634,7 @@ void TexMgr_RecalcWarpImageSize (void)
 	//
 	// find the new correct size
 	//
-	gl_warpimagesize = TexMgr_SafeTextureSize (512);
+	gl_warpimagesize = TexMgr_SafeTextureSize (512, true);
 
 	while (gl_warpimagesize > vid.width)
 		gl_warpimagesize >>= 1;
@@ -729,11 +729,14 @@ void TexMgr_Init (void)
 TexMgr_Pad -- return smallest power of two greater than or equal to s
 ================
 */
-int TexMgr_Pad (int s)
+int TexMgr_Pad (int s, qboolean no_picmip)
 {
-	int i;
-	for (i = 1; i < s; i<<=1)
+	int i, prev_i;
+	for (prev_i = 1, i = 1; i < s; prev_i = i, i<<=1)
 		;
+	// SERECKY APR-25-26: round down sorta like glquake
+	if ( i > s && r_glemu.value && !no_picmip ) 
+		return prev_i;
 	return i;
 }
 
@@ -742,13 +745,13 @@ int TexMgr_Pad (int s)
 TexMgr_SafeTextureSize -- return a size with hardware and user prefs in mind
 ===============
 */
-int TexMgr_SafeTextureSize (int s)
+int TexMgr_SafeTextureSize (int s, qboolean no_picmip)
 {
 	int p = (int)gl_max_size.value;
 	if (!gl_texture_NPOT)
-		s = TexMgr_Pad(s);
+		s = TexMgr_Pad(s, no_picmip);
 	if (p > 0) {
-		p = TexMgr_Pad(p);
+		p = TexMgr_Pad(p, no_picmip);
 		if (p < s) s = p;
 	}
 	if (s > gl_hardware_maxsize)
@@ -761,10 +764,10 @@ int TexMgr_SafeTextureSize (int s)
 TexMgr_PadConditional -- only pad if a texture of that size would be padded. (used for tex coords)
 ================
 */
-int TexMgr_PadConditional (int s)
+int TexMgr_PadConditional (int s, qboolean no_picmip)
 {
-	if (s < TexMgr_SafeTextureSize(s))
-		return TexMgr_Pad(s);
+	if (s < TexMgr_SafeTextureSize(s, no_picmip))
+		return TexMgr_Pad(s, no_picmip);
 	return s;
 }
 
@@ -825,18 +828,18 @@ static unsigned *TexMgr_MipMapH (unsigned *data, int width, int height)
 TexMgr_ResampleTexture -- bilinear resample
 ================
 */
-static unsigned *TexMgr_ResampleTexture (unsigned *in, int inwidth, int inheight, qboolean alpha)
+static unsigned *TexMgr_ResampleTexture (unsigned *in, int inwidth, int inheight, qboolean alpha, qboolean no_picmip)
 {
 	byte *nwpx, *nepx, *swpx, *sepx, *dest;
 	unsigned xfrac, yfrac, x, y, modx, mody, imodx, imody, injump, outjump;
 	unsigned *out;
 	int i, j, outwidth, outheight;
 
-	if (inwidth == TexMgr_Pad(inwidth) && inheight == TexMgr_Pad(inheight))
+	if (inwidth == TexMgr_Pad(inwidth, no_picmip) && inheight == TexMgr_Pad(inheight, no_picmip))
 		return in;
 
-	outwidth = TexMgr_Pad(inwidth);
-	outheight = TexMgr_Pad(inheight);
+	outwidth = TexMgr_Pad(inwidth, no_picmip);
+	outheight = TexMgr_Pad(inheight, no_picmip);
 	out = (unsigned *) Hunk_Alloc(outwidth*outheight*4);
 
 	xfrac = ((inwidth-1) << 16) / (outwidth-1);
@@ -938,13 +941,13 @@ TexMgr_PadEdgeFixW -- special case of AlphaEdgeFix for textures that only need i
 operates in place on 32bit data, and expects unpadded height and width values
 ===============
 */
-static void TexMgr_PadEdgeFixW (byte *data, int width, int height)
+static void TexMgr_PadEdgeFixW (byte *data, int width, int height, qboolean no_picmip)
 {
 	byte *src, *dst;
 	int i, padw, padh;
 
-	padw = TexMgr_PadConditional(width);
-	padh = TexMgr_PadConditional(height);
+	padw = TexMgr_PadConditional(width, no_picmip);
+	padh = TexMgr_PadConditional(height, no_picmip);
 
 	//copy last full column to first empty column, leaving alpha byte at zero
 	src = data + (width - 1) * 4;
@@ -976,13 +979,13 @@ TexMgr_PadEdgeFixH -- special case of AlphaEdgeFix for textures that only need i
 operates in place on 32bit data, and expects unpadded height and width values
 ===============
 */
-static void TexMgr_PadEdgeFixH (byte *data, int width, int height)
+static void TexMgr_PadEdgeFixH (byte *data, int width, int height, qboolean no_picmip)
 {
 	byte *src, *dst;
 	int i, padw, padh;
 
-	padw = TexMgr_PadConditional(width);
-	padh = TexMgr_PadConditional(height);
+	padw = TexMgr_PadConditional(width, no_picmip);
+	padh = TexMgr_PadConditional(height, no_picmip);
 
 	//copy last full row to first empty row, leaving alpha byte at zero
 	dst = data + height * padw * 4;
@@ -1032,15 +1035,15 @@ static unsigned *TexMgr_8to32 (byte *in, int pixels, unsigned int *usepal)
 TexMgr_PadImageW -- return image with width padded up to power-of-two dimentions
 ================
 */
-static byte *TexMgr_PadImageW (byte *in, int width, int height, byte padbyte)
+static byte *TexMgr_PadImageW (byte *in, int width, int height, byte padbyte, qboolean no_picmip)
 {
 	int i, j, outwidth;
 	byte *out, *data;
 
-	if (width == TexMgr_Pad(width))
+	if (width == TexMgr_Pad(width, no_picmip))
 		return in;
 
-	outwidth = TexMgr_Pad(width);
+	outwidth = TexMgr_Pad(width, no_picmip);
 
 	out = data = (byte *) Hunk_Alloc(outwidth*height);
 
@@ -1060,16 +1063,16 @@ static byte *TexMgr_PadImageW (byte *in, int width, int height, byte padbyte)
 TexMgr_PadImageH -- return image with height padded up to power-of-two dimentions
 ================
 */
-static byte *TexMgr_PadImageH (byte *in, int width, int height, byte padbyte)
+static byte *TexMgr_PadImageH (byte *in, int width, int height, byte padbyte, qboolean no_picmip)
 {
 	int i, srcpix, dstpix;
 	byte *data, *out;
 
-	if (height == TexMgr_Pad(height))
+	if (height == TexMgr_Pad(height, no_picmip))
 		return in;
 
 	srcpix = width * height;
-	dstpix = width * TexMgr_Pad(height);
+	dstpix = width * TexMgr_Pad(height, no_picmip);
 
 	out = data = (byte *) Hunk_Alloc(dstpix);
 
@@ -1088,20 +1091,22 @@ TexMgr_LoadImage32 -- handles 32bit source data
 */
 static void TexMgr_LoadImage32 (gltexture_t *glt, unsigned *data)
 {
-	int	internalformat,	miplevel, mipwidth, mipheight, picmip;
+	int	internalformat,	miplevel, mipwidth, mipheight, no_picmip;
 
-	if (!gl_texture_NPOT)
+	no_picmip = (glt->flags & TEXPREF_NOPICMIP) ? true : false;
+
+	if (r_glemu.value || !gl_texture_NPOT)
 	{
 		// resample up
-		data = TexMgr_ResampleTexture (data, glt->width, glt->height, glt->flags & TEXPREF_ALPHA);
-		glt->width = TexMgr_Pad(glt->width);
-		glt->height = TexMgr_Pad(glt->height);
+		data = TexMgr_ResampleTexture (data, glt->width, glt->height, glt->flags & TEXPREF_ALPHA, no_picmip);
+		glt->width = TexMgr_Pad(glt->width, no_picmip);
+		glt->height = TexMgr_Pad(glt->height, no_picmip);
 	}
 
 	// mipmap down
-	picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : q_max((int)gl_picmip.value, 0);
-	mipwidth = TexMgr_SafeTextureSize (glt->width >> picmip);
-	mipheight = TexMgr_SafeTextureSize (glt->height >> picmip);
+	no_picmip = (glt->flags & TEXPREF_NOPICMIP) ? 0 : q_max((int)gl_picmip.value, 0);
+	mipwidth = TexMgr_SafeTextureSize (glt->width >> no_picmip, no_picmip);
+	mipheight = TexMgr_SafeTextureSize (glt->height >> no_picmip, no_picmip);
 	while ((int) glt->width > mipwidth)
 	{
 		TexMgr_MipMapW (data, glt->width, glt->height);
@@ -1158,7 +1163,9 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 	extern cvar_t gl_fullbrights;
 	qboolean padw = false, padh = false;
 	byte padbyte = 0;
-	int i;
+	int i, no_picmip;
+
+	no_picmip = (glt->flags & TEXPREF_NOPICMIP) ? true : false;
 
 	// HACK HACK HACK -- taken from tomazquake
 	if (strstr(glt->name, "shot1sid") &&
@@ -1215,16 +1222,16 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 	// pad each dimention, but only if it's not going to be downsampled later
 	if (glt->flags & TEXPREF_PAD)
 	{
-		if ((int) glt->width < TexMgr_SafeTextureSize(glt->width))
+		if ((int) glt->width < TexMgr_SafeTextureSize(glt->width, no_picmip))
 		{
-			data = TexMgr_PadImageW (data, glt->width, glt->height, padbyte);
-			glt->width = TexMgr_Pad(glt->width);
+			data = TexMgr_PadImageW (data, glt->width, glt->height, padbyte, no_picmip);
+			glt->width = TexMgr_Pad(glt->width, no_picmip);
 			padw = true;
 		}
-		if ((int) glt->height < TexMgr_SafeTextureSize(glt->height))
+		if ((int) glt->height < TexMgr_SafeTextureSize(glt->height, no_picmip))
 		{
-			data = TexMgr_PadImageH (data, glt->width, glt->height, padbyte);
-			glt->height = TexMgr_Pad(glt->height);
+			data = TexMgr_PadImageH (data, glt->width, glt->height, padbyte, no_picmip);
+			glt->height = TexMgr_Pad(glt->height, no_picmip);
 			padh = true;
 		}
 	}
@@ -1234,13 +1241,16 @@ static void TexMgr_LoadImage8 (gltexture_t *glt, byte *data, unsigned int *usepa
 
 	// fix edges
 	if (glt->flags & TEXPREF_ALPHA)
-		TexMgr_AlphaEdgeFix (data, glt->width, glt->height);
+	{
+		if (!r_glemu.value)
+			TexMgr_AlphaEdgeFix (data, glt->width, glt->height);
+	}
 	else
 	{
 		if (padw)
-			TexMgr_PadEdgeFixW (data, glt->source_width, glt->source_height);
+			TexMgr_PadEdgeFixW (data, glt->source_width, glt->source_height, no_picmip);
 		if (padh)
-			TexMgr_PadEdgeFixH (data, glt->source_width, glt->source_height);
+			TexMgr_PadEdgeFixH (data, glt->source_width, glt->source_height, no_picmip);
 	}
 
 	// upload it
