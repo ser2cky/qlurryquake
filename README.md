@@ -1,7 +1,7 @@
 # Qlurry Quake
 GLQuake like you remember it. 
 ---
-Are you tired the pixelated glop that these so called "software-rendered" source ports are peddle to the masses? Are you a 59 year old Quake fan from way back when that remembers how things TRULY used to be like? Are you a defiant Quake fan that loves all things "gl_texturemode GL_LINEAR_MIPMAP_NEAREST"? Well, I've got just the fix for you people! I present to you ladies and gentle, QLURRYQUAKE, a fork of QuakeSpasm that's sole purpose is to have CVars that make your Quake experience all the more GLQuake!
+Are you tired the pixelated glop that these so called "software-rendered" source ports are peddle to the masses? Are you a 59 year old Quake fan from way back when that remembers how things TRULY used to be like? Are you a defiant Quake fan that loves all things "gl_texturemode GL_LINEAR_MIPMAP_NEAREST"? Well, I've got just the fix for you! Ladies and gentlemen, today I'd like to present to you... QLURRYQUAKE, a fork of QuakeSpasm that's sole purpose is to have CVars that make your Quake experience all the more GLQuake!
 
 # What's new
 - r_glemu 1 ( New CVar )
