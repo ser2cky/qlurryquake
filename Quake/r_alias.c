@@ -613,6 +613,19 @@ void R_SetupAliasLighting (entity_t	*e)
 			lightcolor[2] = 256.0f;
 		}
 
+	// SERECKY APR-25-26: preserved hack for frikken torches
+	if (r_glemu.value)
+	{
+		// HACK HACK HACK -- no fullbright colors, so make torches full light
+		if (!Q_strcmp (clmodel->name, "progs/flame2.mdl")
+			|| !Q_strcmp (clmodel->name, "progs/flame.mdl") )
+		{
+			lightcolor[0] = 256.0f;
+			lightcolor[1] = 256.0f;
+			lightcolor[2] = 256.0f;
+		}
+	}
+
 	quantizedangle = ((int)(e->angles[1] * (SHADEDOT_QUANT / 360.0))) & (SHADEDOT_QUANT - 1);
 
 //ericw -- shadevector is passed to the shader to compute shadedots inside the
